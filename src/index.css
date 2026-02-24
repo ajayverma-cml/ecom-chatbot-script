@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    --primary: 168 80% 32%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 168 25% 95%;
+    --secondary-foreground: 168 80% 25%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 25 95% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 168 80% 32%;
+
+    --radius: 0.75rem;
+
+    /* Chatbot-specific tokens */
+    --chatbot-primary: 168 80% 32%;
+    --chatbot-primary-foreground: 0 0% 100%;
+    --chatbot-secondary: 168 25% 95%;
+    --chatbot-accent: 25 95% 60%;
+    --chatbot-bg: 0 0% 100%;
+    --chatbot-surface: 220 14% 97%;
+    --chatbot-text: 220 20% 15%;
+    --chatbot-text-muted: 220 10% 46%;
+    --chatbot-border: 220 13% 91%;
+    --chatbot-shadow: 0 20px 60px -15px hsl(220 20% 15% / 0.15);
+    --chatbot-radius: 0.75rem;
+    --chatbot-header-gradient: linear-gradient(135deg, hsl(168 80% 32%), hsl(168 65% 40%));
+    --chatbot-user-bubble: 168 80% 32%;
+    --chatbot-bot-bubble: 220 14% 96%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 210 40% 98%;
+    --card: 220 20% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 168 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 20% 15%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 25 95% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 168 70% 45%;
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Chatbot scrollbar */
+.chatbot-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.chatbot-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatbot-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--chatbot-border));
+  border-radius: 4px;
+}
+
+/* Product scroll - hide scrollbar */
+.product-scroll::-webkit-scrollbar {
+  display: none;
+}
+.product-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
