@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatbotConfig } from "@/config/chatbot-config";
-// import { ChatMessage, mockProducts } from "@/data/mock-data";
 import { Dispatch, SetStateAction } from "react";
 import ChatMessageComponent from "./ChatMessage";
 import {
@@ -46,33 +45,6 @@ interface MessageScreenProps {
 
 const EMOJI_LIST = ["😊", "👍", "❤️", "🎉", "😂", "🤔", "👋", "🙏", "💯", "🔥", "✨", "😍"];
 
-// Simulated bot responses
-const getBotResponse = (userMessage: string): { content: string; hasProducts: boolean } => {
-  const lower = userMessage.toLowerCase();
-  if (lower.includes("product") || lower.includes("trending") || lower.includes("recommend") || lower.includes("deal")) {
-    return {
-      content: "Here are some **top picks** for you! 🛍️ These are currently trending in our store:",
-      hasProducts: true,
-    };
-  }
-  if (lower.includes("order") || lower.includes("track")) {
-    return {
-      content: "I can help you track your order! 📦\n\nPlease provide your **order number** and I'll look it up for you right away.",
-      hasProducts: false,
-    };
-  }
-  if (lower.includes("return")) {
-    return {
-      content: "Our return policy is simple:\n\n- **30-day** return window\n- Items must be in **original condition**\n- Free returns on orders over **$50**\n\nWould you like to start a return?",
-      hasProducts: false,
-    };
-  }
-  return {
-    content: "Thanks for your message! I'm here to help you find the perfect products, track orders, or answer any questions. What would you like to know? 😊",
-    hasProducts: false,
-  };
-};
-
 const formatDate = (date: Date) => {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -91,17 +63,29 @@ const formatDate = (date: Date) => {
 };
 
 const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, session, setSession }: MessageScreenProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      session: session.session_id,
-      json_content: null,
-      role: "assistant",
-      message: config.welcomeMessage,
-      created_at: formatDate(new Date()),
-    },
-    ...session?.messages
-  ]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const existingMessages = session?.messages || [];
+
+    const hasWelcome = existingMessages.some(
+      msg => msg.id === "welcome"
+    );
+
+    if (hasWelcome) {
+      return existingMessages;
+    }
+
+    return [
+      {
+        id: "welcome",
+        session: session.session_id,
+        json_content: null,
+        role: "assistant",
+        message: config.welcomeMessage,
+        created_at: formatDate(new Date()),
+      },
+      ...existingMessages,
+    ];
+  });
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -127,115 +111,128 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
   }, [messages, isTyping, scrollToBottom]);
 
   const sendMessage = async (preDefinedmessage=null) => {
-    const text = input.trim();
-    if (!text && !imagePreview && !preDefinedmessage) return;
+    try{
+      const text = input.trim();
+      if (!text && !imagePreview && !preDefinedmessage) return;
+  
+      const messageToSend = text || preDefinedmessage
+  
+      const platform = config.features.platformName;
+  
+      if (!platform) {
+        alert("Chatbot platform is not configured.");
+        return;
+      }
+  
+      if (!FEATURES[platform]?.sendMessage) {
+        alert(`Invalid platform "${platform}" configured for chatbot.`);
+        return;
+      }
 
-    const messageToSend = text || preDefinedmessage
-
-    const userMsg:Message = {
-      id: Date.now().toString(),
-      session: session.session_id,
-      json_content: null,
-      role: "user",
-      message: messageToSend,
-      created_at: formatDate(new Date()),
-    }
-
-    setMessages((prev) => [...prev, userMsg]);
-    // const userMsg: ChatMessage = {
-    //   id: Date.now().toString(),
-    //   role: "user",
-    //   message: text,
-    //   created_at: formatDate(new Date()),
-    //   image: imagePreview || undefined,
-    // };
-
-    setInput("");
-    setImagePreview(null);
-    setShowEmoji(false);
-    setIsTyping(true);
-
-    let assistantStarted = false;
-    const assistantId = crypto.randomUUID();
-
-    let fullResponse = "";
-
-    const response = await FEATURES.shopify.sendMessage(
-      userMsg.message,
-      userMsg.session,
-      (chunk) => {
-        fullResponse += chunk;
-
+      const now = formatDate(new Date());
+      const assistantId = crypto.randomUUID();
+  
+      const userMsg:Message = {
+        id: Date.now().toString(),
+        session: session.session_id,
+        json_content: null,
+        role: "user",
+        message: messageToSend,
+        created_at: now,
+      }
+  
+      setMessages((prev) => [...prev, userMsg]);
+  
+      setInput("");
+      setImagePreview(null);
+      setShowEmoji(false);
+      setIsTyping(true);
+  
+      let assistantStarted = false;
+      let fullResponse = "";
+  
+      const response = await FEATURES[platform].sendMessage(
+        userMsg.message,
+        userMsg.session,
+        (chunk: string) => {
+          fullResponse += chunk;
+  
+          setMessages(prev => {
+            // If first chunk → create assistant message
+            if (!assistantStarted) {
+              assistantStarted = true;
+  
+              return [
+                ...prev,
+                {
+                  id: assistantId,
+                  role: "assistant",
+                  session: session.session_id,
+                  message: chunk,
+                  json_content: null,
+                  created_at: formatDate(new Date()),
+                  isStreaming: true,
+                }
+              ];
+            }
+  
+            // If already created → append
+            return prev.map(msg =>
+              msg.id === assistantId
+                ? { ...msg, message: msg.message + chunk, shownLength: msg.message?.length || 0 }
+                : msg
+            );
+          });
+        }
+      );
+  
+      if (!response?.success){
         setMessages(prev => {
-          // If first chunk → create assistant message
-          if (!assistantStarted) {
-            assistantStarted = true;
-
             return [
               ...prev,
               {
                 id: assistantId,
                 role: "assistant",
                 session: session.session_id,
-                message: chunk,
+                message: "I'm having trouble responding right now. Let’s try again in a moment.",
                 json_content: null,
                 created_at: formatDate(new Date()),
-                isStreaming: true,
+                isStreaming: false,
               }
             ];
-          }
-
-          // If already created → append
-          return prev.map(msg =>
-            msg.id === assistantId
-              ? { ...msg, message: msg.message + chunk }
-              : msg
-          );
         });
+        setIsTyping(false);
+        return;
       }
-    );
-
-    if (!response?.success){
-      setMessages(prev => {
-          return [
-            ...prev,
-            {
-              id: assistantId,
-              role: "assistant",
-              session: session.session_id,
-              message: "I'm having trouble responding right now. Let’s try again in a moment.",
-              json_content: null,
-              created_at: formatDate(new Date()),
-              isStreaming: false,
-            }
-          ];
-      });
-      setIsTyping(false);
-      return;
+  
+      // Stop streaming
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === assistantId
+            ? { ...msg, isStreaming: false }
+            : msg
+        )
+      );
+  
+      // Save final assistant message
+      if (fullResponse){
+        const assistantResponse = await FEATURES.saveMessage(session.session_id, fullResponse, "assistant");
+        if (assistantResponse){
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === assistantId
+                ? assistantResponse
+                : msg
+            )
+          );
+        }
+      };
     }
-
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === assistantId
-          ? { ...msg, isStreaming: false }
-          : msg
-      )
-    );
-
-    if (fullResponse){
-      const assistantResponse = await FEATURES.saveMessage(session.session_id, fullResponse, "assistant");
-      if (assistantResponse){
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === assistantId
-              ? assistantResponse
-              : msg
-          )
-        );
-      }
-    };
-
-    setIsTyping(false);
+    catch (error) {
+      console.error("Send message error:", error);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

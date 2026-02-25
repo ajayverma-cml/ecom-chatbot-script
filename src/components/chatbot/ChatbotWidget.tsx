@@ -36,7 +36,13 @@ const ChatbotWidget = () => {
   useEffect(()=>{
     const loadSession = async ()=>{
       const session_id = localStorage.getItem("session_id");
-  
+      const platform = config.features.platformName;
+
+      if (!platform) {
+        alert("Chatbot platform is not configured.");
+        return;
+      }
+
       let sessionData: Session | null = null;
 
       if (session_id) {
@@ -44,7 +50,36 @@ const ChatbotWidget = () => {
       }
 
       if (!sessionData) {
-        sessionData = await FEATURES.createSession();
+        if (platform === "magento"){
+          let customer = null;
+          try{
+            const localStorageData = localStorage.getItem("mage-cache-storage");
+            if (localStorageData) {
+              const parsedData = JSON.parse(localStorageData);
+              const customerData = parsedData["pc-customer-data"]?.customer;
+              if (customerData){
+                customer = {
+                  customer_name: customerData?.fullname ?? "",
+                  customer_email: customerData?.email ?? "",
+                  customer_id: customerData?.id ?? "",
+                }
+              }
+            };
+
+            if (customer){
+              sessionData = await FEATURES.createSession(customer.customer_name, customer.customer_email, customer.customer_id);
+            }
+            else{
+              sessionData = await FEATURES.createSession();
+            }
+          }
+          catch(error){
+            console.error("Error loading Magento customer data:", error);
+          }
+        }
+        else{
+          sessionData = await FEATURES.createSession();
+        }
       }
 
       if (sessionData?.session_id) {

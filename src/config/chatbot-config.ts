@@ -1,3 +1,5 @@
+export type SupportedPlatform = "shopify" | "magento" | "woocommerce";
+
 export interface ChatbotTheme {
   primaryColor: string;
   secondaryColor: string;
@@ -17,6 +19,7 @@ export interface ChatbotFeatures {
   showQuickLinks: boolean;
   showSuggestions: boolean;
   addToCartButton: boolean;
+  platformName?: SupportedPlatform;
 }
 
 export interface ChatbotConfig {
@@ -52,6 +55,7 @@ export const defaultChatbotConfig: ChatbotConfig = {
     showQuickLinks: true,
     showSuggestions: true,
     addToCartButton: true,
+    platformName: "shopify",
   },
   quickLinks: [
     { label: "Return Policy", url: "#" },

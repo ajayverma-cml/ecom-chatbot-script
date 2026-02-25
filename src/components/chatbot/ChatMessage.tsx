@@ -21,37 +21,52 @@ interface ChatMessageProps {
   sendMessage: ()=> void;
 }
 
-export const useTypingEffect = (text: string, speed = 15) => {
-  const [displayed, setDisplayed] = useState("");
-  const indexRef = useRef(0);
-  const textRef = useRef(text);
+const TypeText = ({ text, isStream, shownLength }) => {
+    if (isStream){
+      console.log("Typing effect:", { text, isStream, shownLength });
+    }
+    const [display, setDisplay] = useState(
+      text.slice(0, shownLength)   // resume typing from saved progress
+    );
 
-  useEffect(() => {
-    textRef.current = text;
-  }, [text]);
+    useEffect(() => {
+        if (!isStream) return;
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (indexRef.current < textRef.current.length) {
-        setDisplayed(prev => prev + textRef.current[indexRef.current]);
-        indexRef.current++;
-      }
-    }, speed);
+        let i = shownLength; // continue from saved progress
 
-    return () => clearInterval(interval);
-  }, []);
+        function step() {
+            if (i <= text.length) {
+                const next = text.slice(0, i);
+                setDisplay(next);
+                i += 5;
+                requestAnimationFrame(step);
+            }
+        }
+        step();
+    }, [text]);
 
-  return displayed;
+    return (
+        <ReactMarkdown
+            children={isStream ? display.replaceAll("\\n", "\n") : text.replaceAll("\\n", "\n")}
+            components={{
+                a: ({ node, ...props }) => (
+                    <a
+                        {...props}
+                        className="text-blue-600 underline break-words"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    />
+                ),
+                p: ({ node, ...props }) => (
+                    <p {...props} className="mb-1" />
+                ),
+            }}
+        />
+    );
 };
 
 const ChatMessageComponent = ({ message, showAddToCartBtn, sendMessage }: ChatMessageProps) => {
   const isUser = message.role === "user";
-  const animatedText = useTypingEffect(
-    message.isStreaming ? message.message : "",
-    10
-  );
-
-  const finalText = message.isStreaming ? animatedText : message.message.replace(/\\n/g, "\n");
 
   return (
     <motion.div
@@ -76,7 +91,8 @@ const ChatMessageComponent = ({ message, showAddToCartBtn, sendMessage }: ChatMe
             <p>{message.message}</p>
           ) : (
             <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
-              <ReactMarkdown>{finalText}</ReactMarkdown>
+              <TypeText text={message.message} isStream={message.isStreaming} shownLength={message.shownLength || 0} />
+              {message.isStreaming && <span className="animate-pulse">▌</span>}
             </div>
           )}
         </div>
