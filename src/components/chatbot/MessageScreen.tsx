@@ -25,6 +25,7 @@ interface Message {
   json_content: {} | null;
   created_at: string;
   isStreaming?: boolean;
+  agentCalling?: boolean;
 }
 
 interface MessageScreenProps {
@@ -93,6 +94,22 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const soundRef = useRef<HTMLAudioElement>(null);
+
+  // Check notification sound is on/off from local storage on component mount
+  useEffect(()=>{
+    const soundSetting = localStorage.getItem("chatbot_sound_enabled");
+    if (soundSetting !== null){
+      setSoundEnabled(soundSetting === "true");
+    }
+  }, []);
+
+  const toggleSound = () => {
+    setSoundEnabled(prev => {
+      localStorage.setItem("chatbot_sound_enabled", String(!prev));
+      return !prev;
+    });
+  };
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -154,13 +171,15 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
       const response = await FEATURES[platform].sendMessage(
         userMsg.message,
         userMsg.session,
-        (chunk: string) => {
+        (chunk: string, agentCalling=false) => {
+          console.log("Received chunk:", chunk);
           fullResponse += chunk;
   
           setMessages(prev => {
             // If first chunk → create assistant message
             if (!assistantStarted) {
               assistantStarted = true;
+              setIsTyping(false); // Stop typing indicator once we receive the first chunk, as we will show the streaming message with "isStreaming" state.
   
               return [
                 ...prev,
@@ -172,6 +191,7 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
                   json_content: null,
                   created_at: formatDate(new Date()),
                   isStreaming: true,
+                  agentCalling: agentCalling,
                 }
               ];
             }
@@ -179,15 +199,19 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
             // If already created → append
             return prev.map(msg =>
               msg.id === assistantId
-                ? { ...msg, message: msg.message + chunk, shownLength: msg.message?.length || 0 }
+                ? { ...msg, message: msg.message + chunk, shownLength: msg.message?.length || 0, agentCalling: false }
                 : msg
             );
           });
         }
       );
+
+      console.log("Final response:", response);
   
       if (!response?.success){
         setMessages(prev => {
+          const existingIndex = prev.findIndex(msg => msg.id === assistantId);
+          if (existingIndex === -1) {
             return [
               ...prev,
               {
@@ -197,14 +221,22 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
                 message: "I'm having trouble responding right now. Let’s try again in a moment.",
                 json_content: null,
                 created_at: formatDate(new Date()),
-                isStreaming: false,
+                agentCalling: false,
+                isStreaming: false
               }
             ];
+          }
+
+          return prev.map(msg =>
+            msg.id === assistantId
+              ? { ...msg, message: "I'm having trouble responding right now. Let’s try again in a moment.", agentCalling: false, isStreaming: false }
+              : msg
+          );
         });
         setIsTyping(false);
         return;
       }
-  
+
       // Stop streaming
       setMessages(prev =>
         prev.map(msg =>
@@ -213,7 +245,7 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
             : msg
         )
       );
-  
+
       // Save final assistant message
       if (fullResponse){
         const assistantResponse = await FEATURES.saveMessage(session.session_id, fullResponse, "assistant");
@@ -225,6 +257,12 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
                 : msg
             )
           );
+
+          // (For shopify platfrom) Save Cart ID on local storage if exists in the response, so that it can be used for cart related features like add/update/remove/view button in the chat.
+          if (platform === "shopify" && assistantResponse?.json_content && assistantResponse?.json_content?.cart_id){
+            localStorage.setItem("cart_id", assistantResponse?.json_content?.cart_id);
+          };
+
         }
       };
     }
@@ -232,6 +270,9 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
       console.error("Send message error:", error);
     } finally {
       setIsTyping(false);
+      if (soundEnabled) {
+        soundRef.current?.play().catch(err => console.error("Sound play error:", err));
+      }
     }
   };
 
@@ -277,12 +318,13 @@ const MessageScreen = ({ config, onBack, onClose, isExpanded, onToggleExpand, se
         </div>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={toggleSound}
             className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-[hsl(var(--chatbot-primary-foreground))]"
             aria-label="Toggle sound"
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
+          <audio ref={soundRef} hidden src="/message-notification.mp3" />
           <button
             onClick={onToggleExpand}
             className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-[hsl(var(--chatbot-primary-foreground))]"

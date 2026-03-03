@@ -1,9 +1,8 @@
-import { ChatMessage as ChatMessageType, mockProducts } from "@/data/mock-data";
 import ProductCard from "./ProductCard";
 import ReactMarkdown from "react-markdown";
 import chatbotAvatar from "@/assets/chatbot-avatar.png";
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Message {
   id: string;
@@ -12,7 +11,9 @@ interface Message {
   message: string;
   json_content: {} | null;
   created_at: string;
+  shownLength: number;
   isStreaming?: boolean;
+  agentCalling?: boolean;
 }
 
 interface ChatMessageProps {
@@ -21,10 +22,20 @@ interface ChatMessageProps {
   sendMessage: ()=> void;
 }
 
+const universalLoadingMessages = [
+  "Let me check that for you…",
+  "Working on your request…",
+  "One moment while I sort this out…",
+  "Just a second — pulling everything together…",
+  "I’m on it…",
+  "Give me a moment to process that…",
+  "Fetching the latest details…",
+  "Hang tight — almost ready…",
+  "Putting that together for you now…",
+  "Let me make sure everything’s accurate…",
+];
+
 const TypeText = ({ text, isStream, shownLength }) => {
-    if (isStream){
-      console.log("Typing effect:", { text, isStream, shownLength });
-    }
     const [display, setDisplay] = useState(
       text.slice(0, shownLength)   // resume typing from saved progress
     );
@@ -67,6 +78,23 @@ const TypeText = ({ text, isStream, shownLength }) => {
 
 const ChatMessageComponent = ({ message, showAddToCartBtn, sendMessage }: ChatMessageProps) => {
   const isUser = message.role === "user";
+  const [loadingText, setLoadingText] = useState("");
+
+  useEffect(() => {
+    if (!message.agentCalling) return;
+
+    // pick random starting message
+    let index = Math.floor(Math.random() * universalLoadingMessages.length);
+    setLoadingText(universalLoadingMessages[index]);
+
+    // rotate every 2.5 seconds
+    const interval = setInterval(() => {
+      index = (index + 1) % universalLoadingMessages.length;
+      setLoadingText(universalLoadingMessages[index]);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [message.agentCalling]);
 
   return (
     <motion.div
@@ -91,8 +119,9 @@ const ChatMessageComponent = ({ message, showAddToCartBtn, sendMessage }: ChatMe
             <p>{message.message}</p>
           ) : (
             <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
+              {message.agentCalling && <p className="text-sm text-[hsl(var(--chatbot-primary))] mt-1 animate-pulse"><strong>{loadingText}</strong></p>}
               <TypeText text={message.message} isStream={message.isStreaming} shownLength={message.shownLength || 0} />
-              {message.isStreaming && <span className="animate-pulse">▌</span>}
+              {/* {message.isStreaming && <span className="animate-pulse">▌</span>} */}
             </div>
           )}
         </div>
